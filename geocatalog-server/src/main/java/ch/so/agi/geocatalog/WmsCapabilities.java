@@ -34,7 +34,7 @@ public class WmsCapabilities {
         rbc.close();
     }
     
-    
+    // TODO: exception handling
     public void getNamedLayers() throws Exception {
         System.out.println(file.length());
         
@@ -66,6 +66,7 @@ public class WmsCapabilities {
                     //Element pElement = (Element) parentNode;
 //                    System.out.println(parentNode.getNodeName());
 
+                    // TODO: Abbruchkriterium, z.B. max 10
                     while (parentNode.getNodeName().equalsIgnoreCase("Layer")) {
                         //System.out.println(parentNode.getNodeName());
                         Element pElement = (Element) parentNode;
