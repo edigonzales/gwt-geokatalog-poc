@@ -8,20 +8,27 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-@Service
 public class WmsCapabilities {
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
+
+    String ROOT_LAYER_NAME = "somap";
+    
     String url;
     File file;
     
@@ -37,9 +44,7 @@ public class WmsCapabilities {
     }
     
     // TODO: exception handling
-    public void getNamedLayers() throws Exception {
-        System.out.println(file.length());
-        
+    public List<WmsLayer> getNamedLayers() throws IOException, SAXException, ParserConfigurationException {        
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();  
         DocumentBuilder db = dbf.newDocumentBuilder();  
         Document doc = db.parse(file);  
@@ -47,6 +52,7 @@ public class WmsCapabilities {
         doc.getDocumentElement().normalize();  
         NodeList nodeList = doc.getElementsByTagName("Layer"); 
 
+        var wmsLayers = new HashMap<String,WmsLayer>();
         
         // Logik geht nicht ganz auf, da AGDI die Web GIS Client Logik
         // nicht 1:1 im GetCapabilities abbildet.
@@ -56,34 +62,52 @@ public class WmsCapabilities {
                 Element eElement = (Element) node;
                 String name =  eElement.getElementsByTagName("Name").item(0).getTextContent();
                 String title =  eElement.getElementsByTagName("Title").item(0).getTextContent();
-                System.out.print(name);  
-              
+                        
+                if (name.equalsIgnoreCase(ROOT_LAYER_NAME)) continue;
+
+                var wmsLayer = new WmsLayer();
+                wmsLayer.setName(name);
+                wmsLayer.setTitle(title);
+                                
                 NodeList childLayerNodes = eElement.getElementsByTagName("Layer");
-                System.out.println(" " + childLayerNodes.getLength());
+
+                // Falls der Knoten Kinder hat, soll der Knoten
+                // nicht in der Liste erscheinen.
+                if (childLayerNodes.getLength() > 0) continue;
                 
                 String layerGroupTitle = "";                
                 
-                if (childLayerNodes.getLength() == 0) {
-                    Node parentNode = node.getParentNode();
-                    //Element pElement = (Element) parentNode;
-//                    System.out.println(parentNode.getNodeName());
+                Node parentNode = node.getParentNode();
 
-                    // TODO: Abbruchkriterium, z.B. max 10
-                    while (parentNode.getNodeName().equalsIgnoreCase("Layer")) {
-                        //System.out.println(parentNode.getNodeName());
-                        Element pElement = (Element) parentNode;
-                        //System.out.println(pElement.getElementsByTagName("Name").item(0).getTextContent());
+                // TODO: Abbruchkriterium, z.B. max 10
+                while (parentNode.getNodeName().equalsIgnoreCase("Layer")) {
+                    Element pElement = (Element) parentNode;
+                    
+                    String pName = pElement.getElementsByTagName("Name").item(0).getTextContent();
+                    if (!pName.equals(ROOT_LAYER_NAME)) {
+                        layerGroupTitle = pName;
                         
-                        String pTitle = pElement.getElementsByTagName("Name").item(0).getTextContent();
-                        if (!pTitle.equals("somap")) {
-                            layerGroupTitle = pTitle;
-                        }
-                        
-                        parentNode = parentNode.getParentNode();
+                        wmsLayer.setParentName(pName);
+                        wmsLayer.setParentTitle(pElement.getElementsByTagName("Title").item(0).getTextContent());
                     }
-                    System.out.println("Layergruppe: " + layerGroupTitle);
+                    
+                    parentNode = parentNode.getParentNode();
+                }
+                           
+                // Falls es einen Layer mit identischem Namen gibt,
+                // dieser jedoch auf der Root-Ebene ist, wird
+                // dieser ersetzt mit dem Layer in einer Gruppe.
+                if (wmsLayers.containsKey(wmsLayer.getName())) {
+                    var layer = wmsLayers.get(wmsLayer.getName());
+                    if (layer.getParentName() == null && wmsLayer.getParentName() != null) {
+                        wmsLayers.put(wmsLayer.getName(), wmsLayer);
+                    }
+                } else {
+                    wmsLayers.put(wmsLayer.getName(), wmsLayer);
                 }
             }
         }
+        
+        return new ArrayList<WmsLayer>(wmsLayers.values());
     }
 }

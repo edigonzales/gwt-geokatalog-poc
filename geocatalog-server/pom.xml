@@ -37,6 +37,7 @@
       <artifactId>spring-boot-devtools</artifactId>
       <optional>true</optional>      
     </dependency>
+    <!-- 
     <dependency>
       <groupId>org.geotools</groupId>
       <artifactId>gt-main</artifactId>
@@ -47,7 +48,7 @@
       <artifactId>gt-wms</artifactId>
       <version>24.1</version>
     </dependency>
-
+    -->
     <!-- 
     <dependency>
       <groupId>org.springframework.experimental</groupId>
